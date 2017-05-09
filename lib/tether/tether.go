@@ -368,8 +368,15 @@ func (t *tether) processSessions() error {
 		{t.config.Execs, false},
 	}
 
+	isInit := os.Getpid() == 1
+	var hasSystemd bool
+	fi, err := os.Stat(systemDExec)
+	if err == nil {
+		hasSystemd = !fi.IsDir()
+	}
+
 	// when this is an init process and it wants to run systemd
-	if os.Getpid() == 1 {
+	if isInit && hasSystemd {
 		for i := range maps {
 			m := maps[i]
 			for _, session := range m.sessions {
@@ -390,6 +397,13 @@ func (t *tether) processSessions() error {
 		// process the sessions and launch if needed
 		for id, session := range m.sessions {
 			session.Lock()
+
+			if !isInit && hasSystemd && session.Cmd.Path == systemDExec {
+				// TODO: this should probably be replaced with a proper process that sets the required meta data
+				log.Info("skipping reloading systemd, already running....")
+				session.Unlock()
+				continue
+			}
 
 			log.Debugf("Processing config for session %s", id)
 			var proc = session.Cmd.Process
@@ -524,29 +538,23 @@ func (t *tether) Start() error {
 				return err
 			}
 
-			if err := t.initializeSessions(); err != nil {
-				log.Error(err)
-				return err
-			}
+		}
 
-			// Danger, Will Robinson! There is a strict ordering here.
-			// We need to start attach server first so that it can unblock the session
-			if err := t.reloadExtensions(); err != nil {
-				log.Error(err)
-				return err
-			}
+		if err := t.initializeSessions(); err != nil {
+			log.Error(err)
+			return err
+		}
 
-			if err := t.processSessions(); err != nil {
-				log.Error(err)
-				return err
-			}
-		} else {
-			// Danger, Will Robinson! There is a strict ordering here.
-			// We need to start attach server first so that it can unblock the session
-			if err := t.reloadExtensions(); err != nil {
-				log.Error(err)
-				return err
-			}
+		// Danger, Will Robinson! There is a strict ordering here.
+		// We need to start attach server first so that it can unblock the session
+		if err := t.reloadExtensions(); err != nil {
+			log.Error(err)
+			return err
+		}
+
+		if err := t.processSessions(); err != nil {
+			log.Error(err)
+			return err
 		}
 	}
 
