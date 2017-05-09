@@ -147,6 +147,13 @@ func (t *operations) SetupFirewall(config *tether.ExecutorConfig) error {
 	_ = netfilter.Flush(context.Background(), "")
 
 	// default rule set
+	loopback := &netfilter.Rule{
+		Chain:     netfilter.Input,
+		Interface: "lo",
+		Target:    netfilter.Accept,
+	}
+	_ = loopback.Commit(context.TODO())
+
 	established := &netfilter.Rule{
 		Chain:  netfilter.Input,
 		States: []netfilter.State{netfilter.Established},

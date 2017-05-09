@@ -51,6 +51,8 @@ const (
 
 	// temp directory to copy existing data to mounts
 	bindDir = "/.tether/.bind"
+	// executable for systemd on photon os
+	systemDExec = "/lib/systemd/systemd"
 )
 
 var Sys = system.New()
@@ -366,6 +368,21 @@ func (t *tether) processSessions() error {
 		{t.config.Execs, false},
 	}
 
+	// when this is an init process and it wants to run systemd
+	if os.Getpid() == 1 {
+		for i := range maps {
+			m := maps[i]
+			for _, session := range m.sessions {
+				if session.Cmd.Path == systemDExec {
+					log.Info("switching to systemd init process")
+					evars := append(os.Environ(), session.Cmd.Env...)
+					// #nosec: Subprocess launching with variable
+					return syscall.Exec(session.Cmd.Path, []string{session.Cmd.Path}, evars)
+				}
+			}
+		}
+	}
+
 	// we need to iterate over both sessions and execs
 	for i := range maps {
 		m := maps[i]
@@ -491,32 +508,43 @@ func (t *tether) Start() error {
 		}
 		extraconfig.Encode(t.sink, t.config)
 
+		isInit := os.Getpid() == 1
+		log.Infof("this process id is: %d", os.Getpid())
 		// setup the firewall
-		if err := t.ops.SetupFirewall(t.config); err != nil {
-			log.Warnf("Failed to setup firewall: %s", err)
-		}
+		//if err := t.ops.SetupFirewall(t.config); err != nil {
+		//log.Warnf("Failed to setup firewall: %s", err)
+		//}
 
-		//process the filesystem mounts - this is performed after networks to allow for network mounts
-		if err := t.setMounts(); err != nil {
-			log.Error(err)
-			return err
-		}
+		if isInit {
+			//process the filesystem mounts - this is performed after networks to allow for network mounts
+			if err := t.setMounts(); err != nil {
+				log.Error(err)
+				return err
+			}
 
-		if err := t.initializeSessions(); err != nil {
-			log.Error(err)
-			return err
-		}
+			if err := t.initializeSessions(); err != nil {
+				log.Error(err)
+				return err
+			}
 
-		// Danger, Will Robinson! There is a strict ordering here.
-		// We need to start attach server first so that it can unblock the session
-		if err := t.reloadExtensions(); err != nil {
-			log.Error(err)
-			return err
-		}
+			// Danger, Will Robinson! There is a strict ordering here.
+			// We need to start attach server first so that it can unblock the session
+			if err := t.reloadExtensions(); err != nil {
+				log.Error(err)
+				return err
+			}
 
-		if err := t.processSessions(); err != nil {
-			log.Error(err)
-			return err
+			if err := t.processSessions(); err != nil {
+				log.Error(err)
+				return err
+			}
+		} else {
+			// Danger, Will Robinson! There is a strict ordering here.
+			// We need to start attach server first so that it can unblock the session
+			if err := t.reloadExtensions(); err != nil {
+				log.Error(err)
+				return err
+			}
 		}
 	}
 
