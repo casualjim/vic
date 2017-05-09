@@ -496,26 +496,28 @@ func (t *tether) Start() error {
 
 		t.setLogLevel()
 
-		if err := t.setHostname(); err != nil {
-			log.Error(err)
-			return err
-		}
-
-		// process the networks then publish any dynamic data
-		if err := t.setNetworks(); err != nil {
-			log.Error(err)
-			return err
-		}
-		extraconfig.Encode(t.sink, t.config)
-
 		isInit := os.Getpid() == 1
+
 		log.Infof("this process id is: %d", os.Getpid())
-		// setup the firewall
-		//if err := t.ops.SetupFirewall(t.config); err != nil {
-		//log.Warnf("Failed to setup firewall: %s", err)
-		//}
 
 		if isInit {
+			if err := t.setHostname(); err != nil {
+				log.Error(err)
+				return err
+			}
+
+			// process the networks then publish any dynamic data
+			if err := t.setNetworks(); err != nil {
+				log.Error(err)
+				return err
+			}
+			extraconfig.Encode(t.sink, t.config)
+
+			// setup the firewall
+			//if err := t.ops.SetupFirewall(t.config); err != nil {
+			//log.Warnf("Failed to setup firewall: %s", err)
+			//}
+
 			//process the filesystem mounts - this is performed after networks to allow for network mounts
 			if err := t.setMounts(); err != nil {
 				log.Error(err)
