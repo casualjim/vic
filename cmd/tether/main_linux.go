@@ -31,6 +31,7 @@ import (
 )
 
 var tthr tether.Tether
+var isPidEins = os.Getpid() == 1
 
 func init() {
 	// Initiliaze logger with default TextFormatter
@@ -54,34 +55,38 @@ func main() {
 		if r := recover(); r != nil {
 			log.Errorf("run time panic: %s : %s", r, debug.Stack())
 		}
-		//halt()
+		halt()
 	}()
 
-	//logFile, err := os.OpenFile("/dev/ttyS1", os.O_WRONLY|os.O_SYNC, 0)
-	//if err != nil {
-	//log.Errorf("Could not open serial port for debugging info. Some debug info may be lost! Error reported was %s", err)
-	//}
+	if isPidEins {
+		logFile, err := os.OpenFile("/dev/ttyS1", os.O_WRONLY|os.O_SYNC, 0)
+		if err != nil {
+			log.Errorf("Could not open serial port for debugging info. Some debug info may be lost! Error reported was %s", err)
+		}
 
-	//if err = syscall.Dup3(int(logFile.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-	//log.Errorf("Could not pipe logfile to standard error due to error %s", err)
-	//}
+		if err = syscall.Dup3(int(logFile.Fd()), int(os.Stderr.Fd()), 0); err != nil {
+			log.Errorf("Could not pipe logfile to standard error due to error %s", err)
+		}
 
-	//if _, err = os.Stderr.WriteString("all stderr redirected to debug log"); err != nil {
-	//log.Errorf("Could not write to Stderr due to error %s", err)
-	//}
+		if _, err = os.Stderr.WriteString("all stderr redirected to debug log"); err != nil {
+			log.Errorf("Could not write to Stderr due to error %s", err)
+		}
 
-	// where to look for the various devices and files related to tether
-	pathPrefix = "/dev"
+		// where to look for the various devices and files related to tether
+		pathPrefix = "/.tether"
 
-	//if os.Getpid() == 1 {
-	//// TODO: hard code executor initialization status reporting via guestinfo here
-	//err = createDevices()
-	//if err != nil {
-	//log.Error(err)
-	//// return gives us good behaviour in the case of "-debug" binary
-	//return
-	//}
-	//}
+		// TODO: hard code executor initialization status reporting via guestinfo here
+		err = createDevices()
+		if err != nil {
+			log.Error(err)
+			// return gives us good behaviour in the case of "-debug" binary
+			return
+		}
+	} else {
+
+		pathPrefix = "/dev"
+	}
+
 	sshserver := NewAttachServerSSH()
 	src, err := extraconfig.GuestInfoSource()
 	if err != nil {
@@ -110,9 +115,11 @@ func main() {
 		return
 	}
 
-	exitCh := make(chan os.Signal, 1)
-	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
-	<-exitCh
+	if !isPidEins {
+		exitCh := make(chan os.Signal, 1)
+		signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
+		<-exitCh
+	}
 	log.Info("Clean exit from tether")
 }
 

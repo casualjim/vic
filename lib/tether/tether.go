@@ -52,8 +52,6 @@ const (
 
 	// temp directory to copy existing data to mounts
 	bindDir = "/.tether/.bind"
-	// executable for systemd on photon os
-	systemDExec = "/lib/systemd/systemd"
 )
 
 var Sys = system.New()
@@ -381,21 +379,6 @@ func (t *tether) processSessions() error {
 		hasSystemd = !fi.IsDir()
 	}
 
-	// when this is an init process and it wants to run systemd
-	if isInit && hasSystemd {
-		for i := range maps {
-			m := maps[i]
-			for _, session := range m.sessions {
-				if session.Cmd.Path == systemDExec {
-					log.Info("switching to systemd init process")
-					evars := append(os.Environ(), session.Cmd.Env...)
-					// #nosec: Subprocess launching with variable
-					return syscall.Exec(session.Cmd.Path, []string{session.Cmd.Path}, evars)
-				}
-			}
-		}
-	}
-
 	// we need to iterate over both sessions and execs
 	for i := range maps {
 		m := maps[i]
@@ -521,21 +504,21 @@ func (t *tether) Start() error {
 		log.Infof("this process id is: %d", os.Getpid())
 
 		if isInit {
-			//if err := t.setHostname(); err != nil {
-			//log.Error(err)
-			//return err
-			//}
+			if err := t.setHostname(); err != nil {
+				log.Error(err)
+				return err
+			}
 
-			//// process the networks then publish any dynamic data
-			//if err := t.setNetworks(); err != nil {
-			//log.Error(err)
-			//return err
-			//}
+			// process the networks then publish any dynamic data
+			if err := t.setNetworks(); err != nil {
+				log.Error(err)
+				return err
+			}
 
 			// setup the firewall
-			//if err := t.ops.SetupFirewall(t.config); err != nil {
-			//log.Warnf("Failed to setup firewall: %s", err)
-			//}
+			if err := t.ops.SetupFirewall(t.config); err != nil {
+				log.Warnf("Failed to setup firewall: %s", err)
+			}
 
 			//process the filesystem mounts - this is performed after networks to allow for network mounts
 			if err := t.setMounts(); err != nil {
