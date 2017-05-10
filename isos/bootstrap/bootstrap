@@ -70,6 +70,10 @@ if mount -t ext4 /dev/disk/by-label/containerfs ${MOUNTPOINT}; then
 
     mkdir -p ${MOUNTPOINT}/usr/lib
     cp -r /usr/lib/iptables ${MOUNTPOINT}/usr/lib/
+    (
+      cd ${MOUNTPOINT}
+      ln -sf run/systemd/resolve/resolv.conf etc/resolv.conf
+    )
 
     until [[ $(ls -1 /dev/disk/by-label | wc -l) -eq $(ls -1 /sys/block | wc -l) ]]; do sleep 0.1;done
 
