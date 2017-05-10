@@ -74,7 +74,7 @@ if mount -t ext4 /dev/disk/by-label/containerfs ${MOUNTPOINT}; then
     until [[ $(ls -1 /dev/disk/by-label | wc -l) -eq $(ls -1 /sys/block | wc -l) ]]; do sleep 0.1;done
 
     echo "switching to the new mount"
-    systemctl switch-root ${MOUNTPOINT} /.tether/tether 2>&1
+    systemctl switch-root ${MOUNTPOINT} /usr/lib/systemd/systemd 2>&1
 else
     # TODO: what do we do here? we really need to somehow report an error
     # fail hard

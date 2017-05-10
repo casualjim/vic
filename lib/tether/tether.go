@@ -33,6 +33,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/vmware/cri-esxi/pkg/systemd"
 	"github.com/vmware/vic/cmd/tether/msgs"
 	"github.com/vmware/vic/lib/config/executor"
 	"github.com/vmware/vic/lib/system"
@@ -134,14 +135,17 @@ func (t *tether) setup() error {
 		pids: make(map[int]*SessionConfig),
 	}
 
-	if err := t.childReaper(); err != nil {
-		log.Errorf("Failed to start reaper %s", err)
-		return err
-	}
+	isInit := os.Getpid() == 1
+	if isInit {
+		if err := t.childReaper(); err != nil {
+			log.Errorf("Failed to start reaper %s", err)
+			return err
+		}
 
-	if err := t.ops.Setup(t); err != nil {
-		log.Errorf("Failed tether setup: %s", err)
-		return err
+		if err := t.ops.Setup(t); err != nil {
+			log.Errorf("Failed tether setup: %s", err)
+			return err
+		}
 	}
 
 	for name, ext := range t.extensions {
@@ -167,8 +171,10 @@ func (t *tether) setup() error {
 		log.Errorf("Unable to open PID file for %s : %s", os.Args[0], err)
 	}
 
-	// seed the incoming channel once to trigger child reaper. This is required to collect the zombies created by switch-root
-	t.triggerReaper()
+	if isInit {
+		// seed the incoming channel once to trigger child reaper. This is required to collect the zombies created by switch-root
+		t.triggerReaper()
+	}
 
 	return nil
 }
@@ -515,17 +521,16 @@ func (t *tether) Start() error {
 		log.Infof("this process id is: %d", os.Getpid())
 
 		if isInit {
-			if err := t.setHostname(); err != nil {
-				log.Error(err)
-				return err
-			}
+			//if err := t.setHostname(); err != nil {
+			//log.Error(err)
+			//return err
+			//}
 
-			// process the networks then publish any dynamic data
-			if err := t.setNetworks(); err != nil {
-				log.Error(err)
-				return err
-			}
-			extraconfig.Encode(t.sink, t.config)
+			//// process the networks then publish any dynamic data
+			//if err := t.setNetworks(); err != nil {
+			//log.Error(err)
+			//return err
+			//}
 
 			// setup the firewall
 			//if err := t.ops.SetupFirewall(t.config); err != nil {
@@ -540,6 +545,7 @@ func (t *tether) Start() error {
 
 		}
 
+		extraconfig.Encode(t.sink, t.config)
 		if err := t.initializeSessions(); err != nil {
 			log.Error(err)
 			return err
@@ -551,6 +557,7 @@ func (t *tether) Start() error {
 			log.Error(err)
 			return err
 		}
+		systemd.SdNotify(false, "READY=1")
 
 		if err := t.processSessions(); err != nil {
 			log.Error(err)

@@ -62,6 +62,60 @@ func ReloadConfig() error {
 	return nil
 }
 
+func (t *tether) doReap(status *syscall.WaitStatus, flag int) {
+	// general resiliency
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "Recovered in childReaper %s", debug.Stack())
+		}
+	}()
+
+	// reap until no more children to process
+	for {
+		log.Debugf("Inspecting children with status change")
+
+		select {
+		case <-t.ctx.Done():
+			log.Warnf("Someone called shutdown, returning from child reaper")
+			return
+		default:
+		}
+
+		pid, err := syscall.Wait4(-1, status, flag, nil)
+		// pid 0 means no processes wish to report status
+		if pid == 0 || err == syscall.ECHILD {
+			log.Debug("No more child processes to reap")
+			break
+		}
+
+		if err != nil {
+			log.Warnf("Wait4 got error: %v\n", err)
+			break
+		}
+
+		if !status.Exited() && !status.Signaled() {
+			log.Debugf("Received notifcation about non-exit status change for %d: %d", pid, status)
+			// no reaping or exit handling required
+			continue
+		}
+
+		log.Debugf("Reaped process %d, return code: %d", pid, status.ExitStatus())
+
+		session, ok := t.removeChildPid(pid)
+		log.Debugf("Remove child pid: %d ok: %t", pid, ok)
+		if ok {
+			session.Lock()
+			session.ExitStatus = status.ExitStatus()
+
+			t.handleSessionExit(session)
+			session.Unlock()
+		} else {
+			// This is an adopted zombie. The Wait4 call already clean it up from the kernel
+			log.Warnf("Reaped zombie process PID %d", pid)
+		}
+	}
+}
+
 // childReaper is used to handle events from child processes, including child exit.
 // If running as pid=1 then this means it handles zombie process reaping for orphaned children
 // as well as direct child processes.
@@ -93,59 +147,7 @@ func (t *tether) childReaper() error {
 		flag := syscall.WNOHANG | syscall.WUNTRACED | syscall.WCONTINUED
 
 		for range t.incoming {
-			func() {
-				// general resiliency
-				defer func() {
-					if r := recover(); r != nil {
-						fmt.Fprintf(os.Stderr, "Recovered in childReaper %s", debug.Stack())
-					}
-				}()
-
-				// reap until no more children to process
-				for {
-					log.Debugf("Inspecting children with status change")
-
-					select {
-					case <-t.ctx.Done():
-						log.Warnf("Someone called shutdown, returning from child reaper")
-						return
-					default:
-					}
-
-					pid, err := syscall.Wait4(-1, &status, flag, nil)
-					// pid 0 means no processes wish to report status
-					if pid == 0 || err == syscall.ECHILD {
-						log.Debug("No more child processes to reap")
-						break
-					}
-
-					if err != nil {
-						log.Warnf("Wait4 got error: %v\n", err)
-						break
-					}
-
-					if !status.Exited() && !status.Signaled() {
-						log.Debugf("Received notifcation about non-exit status change for %d: %d", pid, status)
-						// no reaping or exit handling required
-						continue
-					}
-
-					log.Debugf("Reaped process %d, return code: %d", pid, status.ExitStatus())
-
-					session, ok := t.removeChildPid(pid)
-					log.Debugf("Remove child pid: %d ok: %t", pid, ok)
-					if ok {
-						session.Lock()
-						session.ExitStatus = status.ExitStatus()
-
-						t.handleSessionExit(session)
-						session.Unlock()
-					} else {
-						// This is an adopted zombie. The Wait4 call already clean it up from the kernel
-						log.Warnf("Reaped zombie process PID %d", pid)
-					}
-				}
-			}()
+			t.doReap(&status, flag)
 		}
 		log.Info("Stopped reaping child processes")
 	}()
