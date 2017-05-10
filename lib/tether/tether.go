@@ -52,6 +52,8 @@ const (
 
 	// temp directory to copy existing data to mounts
 	bindDir = "/.tether/.bind"
+
+	systemDExec = "/usr/lib/systemd/systemd"
 )
 
 var Sys = system.New()
@@ -540,7 +542,7 @@ func (t *tether) Start() error {
 			log.Error(err)
 			return err
 		}
-		daemon.SdNotify("READY=1")
+		daemon.SdNotify(false, "READY=1")
 
 		if err := t.processSessions(); err != nil {
 			log.Error(err)
