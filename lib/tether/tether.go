@@ -32,8 +32,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/go-systemd/daemon"
 
-	"github.com/vmware/cri-esxi/pkg/systemd"
 	"github.com/vmware/vic/cmd/tether/msgs"
 	"github.com/vmware/vic/lib/config/executor"
 	"github.com/vmware/vic/lib/system"
@@ -540,7 +540,7 @@ func (t *tether) Start() error {
 			log.Error(err)
 			return err
 		}
-		systemd.SdNotify(false, "READY=1")
+		daemon.SdNotify("READY=1")
 
 		if err := t.processSessions(); err != nil {
 			log.Error(err)
