@@ -78,7 +78,6 @@ func (t *tether) doReap(status *syscall.WaitStatus, flag int) {
 		select {
 		case <-t.ctx.Done():
 			log.Warnf("Someone called shutdown, returning from child reaper")
-			log.Error(string(debug.Stack()))
 			return
 		default:
 		}

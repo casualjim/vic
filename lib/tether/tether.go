@@ -136,12 +136,11 @@ func (t *tether) setup() error {
 		pids: make(map[int]*SessionConfig),
 	}
 
-	if err := t.childReaper(); err != nil {
-		log.Errorf("Failed to start reaper %s", err)
-		return err
-	}
-
 	if t.manageSystem {
+		if err := t.childReaper(); err != nil {
+			log.Errorf("Failed to start reaper %s", err)
+			return err
+		}
 		if err := t.ops.Setup(t); err != nil {
 			log.Errorf("Failed tether setup: %s", err)
 			return err
@@ -174,6 +173,12 @@ func (t *tether) setup() error {
 	if t.manageSystem {
 		// seed the incoming channel once to trigger child reaper. This is required to collect the zombies created by switch-root
 		t.triggerReaper()
+	} else {
+		if err := t.childReaper(); err != nil {
+			log.Errorf("Failed to start reaper %s", err)
+			return err
+		}
+
 	}
 
 	return nil
@@ -206,13 +211,13 @@ func (t *tether) setLogLevel() {
 	// adjust the logging level appropriately
 	log.SetLevel(log.InfoLevel)
 	// TODO: do not echo application output to console without debug enabled
-	serial.DisableTracing()
+	// serial.DisableTracing()
 
-	if t.config.DebugLevel > 0 {
+	// if t.config.DebugLevel > 0 {
 		log.SetLevel(log.DebugLevel)
 
 		logConfig(t.config)
-	}
+	// }
 
 	if t.config.DebugLevel > 1 {
 		serial.EnableTracing()
