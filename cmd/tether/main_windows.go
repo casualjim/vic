@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// create the tether and register the attach extension
-	tthr = tether.New(src, sink, &operations{})
+	tthr = tether.New(src, sink, &operations{}, true)
 	tthr.Register("Attach", sshserver)
 
 	err = tthr.Start()
