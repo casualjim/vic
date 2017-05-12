@@ -211,13 +211,13 @@ func (t *tether) setLogLevel() {
 	// adjust the logging level appropriately
 	log.SetLevel(log.InfoLevel)
 	// TODO: do not echo application output to console without debug enabled
-	// serial.DisableTracing()
+	serial.DisableTracing()
 
-	// if t.config.DebugLevel > 0 {
-	log.SetLevel(log.DebugLevel)
+	if t.config.DebugLevel > 0 {
+		log.SetLevel(log.DebugLevel)
 
-	logConfig(t.config)
-	// }
+		logConfig(t.config)
+	}
 
 	if t.config.DebugLevel > 1 {
 		serial.EnableTracing()
@@ -414,6 +414,10 @@ func (t *tether) processSessions() error {
 			if !t.manageSystem && hasSystemd && session.Cmd.Path == systemDExec {
 				// TODO: this should probably be replaced with a proper process that sets the required meta data
 				log.Info("skipping reloading systemd, already running....")
+				if session.Started != "true" {
+					session.Started = "true"
+					wg.Add(1)
+				}
 				session.Unlock()
 				continue
 			}
