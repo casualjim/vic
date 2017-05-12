@@ -101,7 +101,7 @@ func main() {
 	}
 
 	// create the tether
-	tthr = tether.New(src, sink, &operations{})
+	tthr = tether.New(src, sink, &operations{}, isPidEins)
 
 	// register the attach extension
 	tthr.Register("Attach", sshserver)

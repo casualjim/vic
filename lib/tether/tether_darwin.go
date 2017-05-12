@@ -77,3 +77,7 @@ func establishPty(session *SessionConfig) error {
 func establishNonPty(session *SessionConfig) error {
 	return errors.New("unimplemented on OSX")
 }
+
+func osNotifyReady() error {
+	return errors.New("systemd notify unimplemented on OSX")
+}

@@ -32,7 +32,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/coreos/go-systemd/daemon"
 
 	"github.com/vmware/vic/cmd/tether/msgs"
 	"github.com/vmware/vic/lib/config/executor"
@@ -61,7 +60,8 @@ var once sync.Once
 
 type tether struct {
 	// the implementation to use for tailored operations
-	ops Operations
+	ops          Operations
+	manageSystem bool
 
 	// the reload channel is used to block reloading of the config
 	reload chan struct{}
@@ -82,11 +82,12 @@ type tether struct {
 	incoming chan os.Signal
 }
 
-func New(src extraconfig.DataSource, sink extraconfig.DataSink, ops Operations) Tether {
+func New(src extraconfig.DataSource, sink extraconfig.DataSink, ops Operations, manageSystem bool) Tether {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &tether{
-		ops:    ops,
-		reload: make(chan struct{}, 1),
+		ops:          ops,
+		manageSystem: manageSystem,
+		reload:       make(chan struct{}, 1),
 		config: &ExecutorConfig{
 			pids: make(map[int]*SessionConfig),
 		},
@@ -135,13 +136,12 @@ func (t *tether) setup() error {
 		pids: make(map[int]*SessionConfig),
 	}
 
-	isInit := os.Getpid() == 1
-	if isInit {
-		if err := t.childReaper(); err != nil {
-			log.Errorf("Failed to start reaper %s", err)
-			return err
-		}
+	if err := t.childReaper(); err != nil {
+		log.Errorf("Failed to start reaper %s", err)
+		return err
+	}
 
+	if t.manageSystem {
 		if err := t.ops.Setup(t); err != nil {
 			log.Errorf("Failed tether setup: %s", err)
 			return err
@@ -171,7 +171,7 @@ func (t *tether) setup() error {
 		log.Errorf("Unable to open PID file for %s : %s", os.Args[0], err)
 	}
 
-	if isInit {
+	if t.manageSystem {
 		// seed the incoming channel once to trigger child reaper. This is required to collect the zombies created by switch-root
 		t.triggerReaper()
 	}
@@ -374,7 +374,6 @@ func (t *tether) processSessions() error {
 		{t.config.Execs, false},
 	}
 
-	isInit := os.Getpid() == 1
 	var hasSystemd bool
 	fi, err := os.Stat(systemDExec)
 	if err == nil {
@@ -389,7 +388,7 @@ func (t *tether) processSessions() error {
 		for id, session := range m.sessions {
 			session.Lock()
 
-			if !isInit && hasSystemd && session.Cmd.Path == systemDExec {
+			if !t.manageSystem && hasSystemd && session.Cmd.Path == systemDExec {
 				// TODO: this should probably be replaced with a proper process that sets the required meta data
 				log.Info("skipping reloading systemd, already running....")
 				session.Unlock()
@@ -501,11 +500,9 @@ func (t *tether) Start() error {
 
 		t.setLogLevel()
 
-		isInit := os.Getpid() == 1
-
 		log.Infof("this process id is: %d", os.Getpid())
 
-		if isInit {
+		if t.manageSystem {
 			if err := t.setHostname(); err != nil {
 				log.Error(err)
 				return err
@@ -522,12 +519,12 @@ func (t *tether) Start() error {
 				log.Warnf("Failed to setup firewall: %s", err)
 			}
 
-			//process the filesystem mounts - this is performed after networks to allow for network mounts
-			if err := t.setMounts(); err != nil {
-				log.Error(err)
-				return err
-			}
+		}
 
+		//process the filesystem mounts - this is performed after networks to allow for network mounts
+		if err := t.setMounts(); err != nil {
+			log.Error(err)
+			return err
 		}
 
 		extraconfig.Encode(t.sink, t.config)
@@ -542,7 +539,10 @@ func (t *tether) Start() error {
 			log.Error(err)
 			return err
 		}
-		daemon.SdNotify(false, "READY=1")
+
+		if err := osNotifyReady(); err != nil {
+			log.Error(err)
+		}
 
 		if err := t.processSessions(); err != nil {
 			log.Error(err)

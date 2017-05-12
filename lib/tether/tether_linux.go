@@ -25,6 +25,7 @@ import (
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/kr/pty"
 
 	"github.com/vmware/vic/pkg/trace"
@@ -350,4 +351,9 @@ func establishNonPty(session *SessionConfig) error {
 	}()
 
 	return session.Cmd.Start()
+}
+
+func osNotifyReady() error {
+	_, err := daemon.SdNotify(false, "READY=1")
+	return err
 }

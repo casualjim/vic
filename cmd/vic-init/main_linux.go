@@ -110,7 +110,7 @@ func main() {
 	}
 
 	// create the tether
-	tthr = tether.New(src, sink, &operations{})
+	tthr = tether.New(src, sink, &operations{}, true)
 
 	// register the toolbox extension and configure for appliance
 	toolbox := configureToolbox(tether.NewToolbox())

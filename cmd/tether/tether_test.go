@@ -202,7 +202,7 @@ func StartAttachTether(t *testing.T, cfg *executor.ExecutorConfig, mocker *Mocke
 	extraconfig.Encode(sink, cfg)
 	log.Debugf("Test configuration: %#v", sink)
 
-	tthr = tether.New(src, sink, mocker)
+	tthr = tether.New(src, sink, mocker, true)
 	tthr.Register("mocker", mocker)
 	tthr.Register("Attach", server)
 

@@ -218,7 +218,7 @@ func StartTether(t *testing.T, cfg *executor.ExecutorConfig, mocker *Mocker) (Te
 	extraconfig.Encode(sink, cfg)
 	log.Debugf("Test configuration: %#v", sink)
 
-	Tthr = New(src, sink, mocker)
+	Tthr = New(src, sink, mocker, true)
 	Tthr.Register("mocker", mocker)
 
 	// run the tether to service the attach
@@ -239,7 +239,7 @@ func RunTether(t *testing.T, cfg *executor.ExecutorConfig, mocker *Mocker) (Teth
 	extraconfig.Encode(sink, cfg)
 	log.Debugf("Test configuration: %#v", sink)
 
-	Tthr = New(src, sink, mocker)
+	Tthr = New(src, sink, mocker, true)
 	Tthr.Register("Mocker", mocker)
 
 	// run the tether to service the attach
