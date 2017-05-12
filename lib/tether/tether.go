@@ -173,12 +173,6 @@ func (t *tether) setup() error {
 	if t.manageSystem {
 		// seed the incoming channel once to trigger child reaper. This is required to collect the zombies created by switch-root
 		t.triggerReaper()
-	} else {
-		if err := t.childReaper(); err != nil {
-			log.Errorf("Failed to start reaper %s", err)
-			return err
-		}
-
 	}
 
 	return nil
