@@ -55,22 +55,25 @@ func main() {
 		if r := recover(); r != nil {
 			log.Errorf("run time panic: %s : %s", r, debug.Stack())
 		}
-		halt()
+		if isPidEins {
+			halt()
+		}
 	}()
 
+	logFile, err := os.OpenFile("/dev/ttyS1", os.O_WRONLY|os.O_SYNC, 0)
+	if err != nil {
+		log.Errorf("Could not open serial port for debugging info. Some debug info may be lost! Error reported was %s", err)
+	}
+
+	if err = syscall.Dup3(int(logFile.Fd()), int(os.Stderr.Fd()), 0); err != nil {
+		log.Errorf("Could not pipe logfile to standard error due to error %s", err)
+	}
+
+	if _, err = os.Stderr.WriteString("all stderr redirected to debug log"); err != nil {
+		log.Errorf("Could not write to Stderr due to error %s", err)
+	}
+
 	if isPidEins {
-		logFile, err := os.OpenFile("/dev/ttyS1", os.O_WRONLY|os.O_SYNC, 0)
-		if err != nil {
-			log.Errorf("Could not open serial port for debugging info. Some debug info may be lost! Error reported was %s", err)
-		}
-
-		if err = syscall.Dup3(int(logFile.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-			log.Errorf("Could not pipe logfile to standard error due to error %s", err)
-		}
-
-		if _, err = os.Stderr.WriteString("all stderr redirected to debug log"); err != nil {
-			log.Errorf("Could not write to Stderr due to error %s", err)
-		}
 
 		// where to look for the various devices and files related to tether
 		pathPrefix = "/.tether"
