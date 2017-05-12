@@ -52,7 +52,7 @@ const (
 	// temp directory to copy existing data to mounts
 	bindDir = "/.tether/.bind"
 
-	systemDExec = "/usr/lib/systemd/systemd"
+	systemDExec = "/lib/systemd/systemd"
 )
 
 var Sys = system.New()
@@ -214,9 +214,9 @@ func (t *tether) setLogLevel() {
 	// serial.DisableTracing()
 
 	// if t.config.DebugLevel > 0 {
-		log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.DebugLevel)
 
-		logConfig(t.config)
+	logConfig(t.config)
 	// }
 
 	if t.config.DebugLevel > 1 {
@@ -299,6 +299,24 @@ func (t *tether) initializeSessions() error {
 	maps := map[string]map[string]*SessionConfig{
 		"Sessions": t.config.Sessions,
 		"Execs":    t.config.Execs,
+	}
+
+	if !t.manageSystem {
+		proc, err := os.FindProcess(1)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		cfg := &SessionConfig{
+			OpenStdin: false,
+			wait:      &sync.WaitGroup{},
+		}
+		cfg.Cmd.Path = systemDExec
+		cfg.Cmd.Args = []string{systemDExec}
+		cfg.Cmd.Process = proc
+		cfg.wait.Add(1)
+		maps["Sessions"]["systemd"] = cfg
 	}
 
 	// we need to iterate over both sessions and execs
