@@ -295,24 +295,6 @@ func (t *tether) initializeSessions() error {
 		"Execs":    t.config.Execs,
 	}
 
-	if !t.manageSystem {
-		proc, err := os.FindProcess(1)
-		if err != nil {
-			log.Error(err)
-			return err
-		}
-
-		cfg := &SessionConfig{
-			OpenStdin: false,
-			wait:      &sync.WaitGroup{},
-		}
-		cfg.Cmd.Path = systemDExec
-		cfg.Cmd.Args = []string{systemDExec}
-		cfg.Cmd.Process = proc
-		cfg.wait.Add(1)
-		maps["Sessions"]["systemd"] = cfg
-	}
-
 	// we need to iterate over both sessions and execs
 	for name, m := range maps {
 
@@ -577,7 +559,7 @@ func (t *tether) Start() error {
 }
 
 func (t *tether) Stop() error {
-	defer trace.End(trace.Begin(""))
+	defer trace.End(trace.Begin("stop tether"))
 
 	// cancel the context to signal waiters
 	t.cancel()
