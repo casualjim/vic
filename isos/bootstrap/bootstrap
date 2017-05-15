@@ -72,6 +72,9 @@ if mount -t ext4 /dev/disk/by-label/containerfs ${MOUNTPOINT}; then
     cp -r /usr/lib/iptables ${MOUNTPOINT}/usr/lib/
     (
       cd ${MOUNTPOINT}
+      rm -rf var/run var/lock
+      ln -sf ../run var/run
+      ln -sf ../run/lock var/lock
       ln -sf ../run/systemd/resolve/resolv.conf etc/resolv.conf
     )
 
